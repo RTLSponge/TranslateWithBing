@@ -8,6 +8,8 @@ import org.spongepowered.api.data.DataHolder;
 import org.spongepowered.api.data.manipulator.mutable.common.AbstractData;
 import org.spongepowered.api.data.merge.MergeFunction;
 import org.spongepowered.api.data.value.mutable.Value;
+import org.spongepowered.api.entity.living.player.Player;
+import org.spongepowered.api.entity.living.player.User;
 
 import java.util.Optional;
 
@@ -40,10 +42,13 @@ public class LanguageData extends AbstractData<LanguageData, ImmutableLanguageDa
 
     @Override
     public Optional<LanguageData> fill(DataHolder dataHolder, MergeFunction overlap) {
-        final Optional<LanguageData> from = BUILDER.createFrom(dataHolder);
-        final LanguageData data = from.orElse(null);
-        final LanguageData newData = checkNotNull(overlap.merge(this, data));
-        return Optional.of(this.set(TranslateKeys.Language, newData.language));
+        if(dataHolder instanceof Player || dataHolder instanceof User) {
+            final Optional<LanguageData> from = BUILDER.createFrom(dataHolder);
+            final LanguageData data = from.orElse(null);
+            final LanguageData newData = checkNotNull(overlap.merge(this, data));
+            return Optional.of(this.set(TranslateKeys.Language, newData.language));
+        }
+        return Optional.empty();
     }
 
     @Override
