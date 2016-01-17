@@ -24,7 +24,7 @@ public class ImmutableLanguageData extends AbstractImmutableData<ImmutableLangua
     }
 
     public ImmutableValue<String> language() {
-        return Sponge.getRegistry().getValueFactory().createValue(TranslateKeys.Language, "", this.language).asImmutable();
+        return Sponge.getRegistry().getValueFactory().createValue(TranslateKeys.Language, this.language, "").asImmutable();
     }
 
     @Override
@@ -46,7 +46,7 @@ public class ImmutableLanguageData extends AbstractImmutableData<ImmutableLangua
     @Override
     public int compareTo(ImmutableLanguageData o) {
         return ComparisonChain.start()
-                .compare(o.language, this.language)
+                .compare(this.language, o.language)
                 .result();
     }
 

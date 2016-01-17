@@ -16,6 +16,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 public class LanguageData extends AbstractData<LanguageData, ImmutableLanguageData> {
 
     private String language;
+    public static LanguageDataManipulatorBuilder BUILDER = new LanguageDataManipulatorBuilder();
 
     public LanguageData() {
         this(Language.AUTO_DETECT.toString());
@@ -26,7 +27,7 @@ public class LanguageData extends AbstractData<LanguageData, ImmutableLanguageDa
     }
 
     public Value<String> language() {
-        return Sponge.getRegistry().getValueFactory().createValue(TranslateKeys.Language, "", language);
+        return Sponge.getRegistry().getValueFactory().createValue(TranslateKeys.Language, language, "");
     }
 
     @Override
@@ -39,7 +40,10 @@ public class LanguageData extends AbstractData<LanguageData, ImmutableLanguageDa
 
     @Override
     public Optional<LanguageData> fill(DataHolder dataHolder, MergeFunction overlap) {
-        return Optional.empty(); // Yes, this should be implemented properly, but it isn't necessary currently.
+        final Optional<LanguageData> from = BUILDER.createFrom(dataHolder);
+        final LanguageData data = from.orElse(null);
+        final LanguageData newData = checkNotNull(overlap.merge(this, data));
+        return Optional.of(this.set(TranslateKeys.Language, newData.language));
     }
 
     @Override

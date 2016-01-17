@@ -2,7 +2,6 @@ package au.id.rleach.translate;
 
 import au.id.rleach.translate.data.ImmutableLanguageData;
 import au.id.rleach.translate.data.LanguageData;
-import au.id.rleach.translate.data.LanguageDataManipulatorBuilder;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.Multimaps;
@@ -55,7 +54,7 @@ public class TranslateWithBing {
 
     @Listener
     public void onPreInit(GamePreInitializationEvent event) {
-        Sponge.getDataManager().register(LanguageData.class, ImmutableLanguageData.class, new LanguageDataManipulatorBuilder());
+        Sponge.getDataManager().register(LanguageData.class, ImmutableLanguageData.class, LanguageData.BUILDER);
     }
 
     Text commandKey = Text.of(Sponge.getRegistry().getTranslationById("options.language").get());
@@ -67,10 +66,12 @@ public class TranslateWithBing {
     public void initMap(){
         {
             for(Language l:Language.values()){
+                if(l.equals(Language.AUTO_DETECT))
+                    continue;
                 try {
-                    String underscore = l.getName(l).replace(" ","_");
-                    languageChoices.put(underscore,l);
+                    languageChoices.put(l.getName(l),l);
                 } catch (Exception e){
+                    languageChoices.put(l.toString(),l);
                 }
             }
         }
@@ -99,7 +100,12 @@ public class TranslateWithBing {
                         }
                     } else {
                         LanguageData data = p.get().get(LanguageData.class).orElse(new LanguageData());
-                        src.sendMessage(Text.of(commandKey," ", data.language().get()));
+                        Language lang = Language.fromString(data.language().get());
+                        try {
+                            src.sendMessage(Text.of(commandKey," ", lang.getName(lang)));
+                        } catch (Exception e) {
+                            src.sendMessage(Text.of(commandKey," ", lang.toString()));
+                        }
                         return CommandResult.success();
                     }
                 })
