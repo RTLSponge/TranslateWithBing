@@ -26,6 +26,7 @@ import org.spongepowered.api.event.filter.cause.First;
 import org.spongepowered.api.event.game.state.GameInitializationEvent;
 import org.spongepowered.api.event.game.state.GamePreInitializationEvent;
 import org.spongepowered.api.event.message.MessageChannelEvent;
+import org.spongepowered.api.event.network.ClientConnectionEvent;
 import org.spongepowered.api.plugin.Plugin;
 import org.spongepowered.api.scheduler.Task;
 import org.spongepowered.api.service.permission.PermissionDescription;
@@ -73,13 +74,21 @@ public class TranslateWithBing {
                 if(l.equals(Language.AUTO_DETECT))
                     continue;
                 try {
-                    languageChoices.put(l.getName(l),l);
+                    languageChoices.put(l.getName(l).replace(' ', '_'),l);
                 } catch (Exception e){
-                    languageChoices.put(l.toString(),l);
+                    languageChoices.put(l.toString().replace(' ', '_'),l);
                 }
             }
         }
     }
+
+    @Listener
+    public void onPlayerJoin(ClientConnectionEvent.Join event){
+        if(Sponge.getServer().getOnlinePlayers().stream().anyMatch(p->p.getLocale()!=event.getTargetEntity().getLocale())) {
+            Sponge.getServer().getBroadcastChannel().send(languageWarning);
+        }
+    }
+
     @Listener
     public void onCommandInitTime(GameInitializationEvent event) {
         initMap();
@@ -189,7 +198,7 @@ public class TranslateWithBing {
                     multiMap.keys().stream()
                             .distinct()
                             .filter(to->!to.equals(Language.AUTO_DETECT))
-                            .filter(to->!to.equals(from)).forEach(
+                            .filter(to->!to.equals(fromLang)).forEach(
                             to -> {
                                 String html = "";
                                 String out2 = "";
