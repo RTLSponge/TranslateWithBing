@@ -23,7 +23,7 @@ public class LanguageDataManipulatorBuilder implements DataManipulatorBuilder<La
     public Optional<LanguageData> build(DataView container) throws InvalidDataException {
         // Note that this should check the Queries.CONTENT_VERSION, but for the sake of demonstration
         // it's not necessary
-        if (container.contains(TranslateKeys.Language)) {
+        if (container.contains(TranslateKeys.Language.getQuery())) {
             final String language = container.getString(TranslateKeys.Language.getQuery()).get();
             return Optional.of(new LanguageData(language));
         }

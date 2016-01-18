@@ -43,7 +43,7 @@ import java.net.URL;
 import java.util.*;
 
 
-@Plugin(id="TranslateWithBing", name="TranslateWithBing", version="1.0.0")
+@Plugin(id="TranslateWithBing", name="TranslateWithBing", version="1.0.1")
 public class TranslateWithBing {
 
     @Inject
