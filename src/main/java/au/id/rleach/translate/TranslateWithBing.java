@@ -2,6 +2,7 @@ package au.id.rleach.translate;
 
 import au.id.rleach.translate.data.ImmutableLanguageData;
 import au.id.rleach.translate.data.LanguageData;
+import au.id.rleach.translate.data.TranslateKeys;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.Multimaps;
@@ -27,6 +28,9 @@ import org.spongepowered.api.event.game.state.GamePreInitializationEvent;
 import org.spongepowered.api.event.message.MessageChannelEvent;
 import org.spongepowered.api.plugin.Plugin;
 import org.spongepowered.api.scheduler.Task;
+import org.spongepowered.api.service.permission.PermissionDescription;
+import org.spongepowered.api.service.permission.PermissionDescription.Builder;
+import org.spongepowered.api.service.permission.PermissionService;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.text.chat.ChatTypes;
 import org.spongepowered.api.text.format.TextColors;
@@ -77,24 +81,24 @@ public class TranslateWithBing {
         }
     }
     @Listener
-    public void onCommandInitTime(GameInitializationEvent event){
+    public void onCommandInitTime(GameInitializationEvent event) {
         initMap();
         CommandSpec overrideLanguageSpec = CommandSpec.builder()
-                .arguments(GenericArguments.playerOrSource(Text.of("player")) , GenericArguments.optional(GenericArguments.choices(commandKey, languageChoices)))
+                .arguments(GenericArguments.playerOrSource(Text.of("player")), GenericArguments.optional(GenericArguments.choices(commandKey, languageChoices)))
                 .permission(languageOverridePermission)
-                .executor((src, context)->{
+                .executor((src, context) -> {
                     Optional<Player> p = context.getOne("player");
                     Optional<Language> opt = context.getOne("options.language");
-                    if(!p.isPresent()) return CommandResult.empty();
-                    if(opt.isPresent()) {
+                    if (!p.isPresent()) return CommandResult.empty();
+                    if (opt.isPresent()) {
                         DataTransactionResult result = p.get().offer(new LanguageData(opt.get().toString()));
                         if (result.isSuccessful()) {
                             try {
                                 src.sendMessage(Text.of("Players language set to :", opt.get().getName(opt.get())));
-                            } catch (Exception e) {}
+                            } catch (Exception e) {
+                            }
                             return CommandResult.success();
-                        }
-                        else {
+                        } else {
                             src.sendMessage(Text.of("Invalid Language"));
                             return CommandResult.empty();
                         }
@@ -102,15 +106,26 @@ public class TranslateWithBing {
                         LanguageData data = p.get().get(LanguageData.class).orElse(new LanguageData());
                         Language lang = Language.fromString(data.language().get());
                         try {
-                            src.sendMessage(Text.of(commandKey," ", lang.getName(lang)));
+                            src.sendMessage(Text.of(commandKey, " ", lang.getName(lang)));
                         } catch (Exception e) {
-                            src.sendMessage(Text.of(commandKey," ", lang.toString()));
+                            src.sendMessage(Text.of(commandKey, " ", lang.toString()));
                         }
                         return CommandResult.success();
                     }
                 })
                 .build();
-        logger.warn(Sponge.getCommandManager().register(this,overrideLanguageSpec,"language").toString());
+        Sponge.getCommandManager().register(this, overrideLanguageSpec, "language");
+        Optional<PermissionService> permissionService = Sponge.getGame().getServiceManager().provide(PermissionService.class);
+        permissionService.ifPresent(ps->{
+            Optional<Builder> builder = ps.newDescriptionBuilder(this);
+            builder.ifPresent(descBuilder -> {
+                descBuilder.assign(PermissionDescription.ROLE_USER, true)
+                        .id(languageOverridePermission)
+                        .description(Text.of("For command /langauge for overriding TranslateWithBing language."))
+                        .register();
+            });
+        });
+
     }
 
     @Listener
@@ -156,11 +171,18 @@ public class TranslateWithBing {
         });
         Optional<Text> message = chat.getMessage();
         if(message.isPresent())
-            sendTranslatedMessages(locale,multiMap,message.get());
+            sendTranslatedMessages(player, multiMap,message.get());
     }
 
-    public void sendTranslatedMessages(Locale locale, ImmutableListMultimap<Language, Player> multiMap, Text message){
-        Language from = this.l2l.map.getOrDefault(locale, Language.AUTO_DETECT);
+    public void sendTranslatedMessages(Player from, ImmutableListMultimap<Language, Player> multiMap, Text message){
+        String fromString = from.get(TranslateKeys.Language).orElse("");
+        Language fromLang;
+        if(fromString.isEmpty()) {
+            fromLang = this.l2l.map.getOrDefault(from.getLocale(), Language.AUTO_DETECT);
+        } else {
+            fromLang = Language.fromString(fromString);
+        }
+
         Task submit = Sponge.getScheduler().createTaskBuilder()
                 .async()
                 .execute(() -> {
@@ -173,7 +195,7 @@ public class TranslateWithBing {
                                 String out2 = "";
                                 try {
                                     html = TextSerializers.LEGACY_FORMATTING_CODE.serialize(message);
-                                    String out = Translate.execute(html, from, to);
+                                    String out = Translate.execute(html, fromLang, to);
                                     out2 = out;
                                     multiMap.get(to).stream().forEach(p->p.sendMessage(ChatTypes.CHAT, Text.of(TextColors.GRAY,"⚑", TextSerializers.LEGACY_FORMATTING_CODE.deserialize(out))));
 
