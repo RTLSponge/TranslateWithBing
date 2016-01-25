@@ -103,6 +103,8 @@ public class TranslateWithBing {
                             try {
                                 src.sendMessage(Text.of("Players language set to : ", opt.get().getName(opt.get())));
                             } catch (Exception e) {
+                                src.sendMessage(Text.of("An error occured",e.getMessage()));
+                                return CommandResult.empty();
                             }
                             return CommandResult.success();
                         } else {
