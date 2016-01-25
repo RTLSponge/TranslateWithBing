@@ -30,7 +30,6 @@ import org.spongepowered.api.event.network.ClientConnectionEvent;
 import org.spongepowered.api.plugin.Plugin;
 import org.spongepowered.api.scheduler.Task;
 import org.spongepowered.api.service.permission.PermissionDescription;
-import org.spongepowered.api.service.permission.PermissionDescription.Builder;
 import org.spongepowered.api.service.permission.PermissionService;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.text.chat.ChatTypes;
@@ -62,49 +61,47 @@ public class TranslateWithBing {
         Sponge.getDataManager().register(LanguageData.class, ImmutableLanguageData.class, LanguageData.BUILDER);
     }
 
-    Text commandKey = Text.of(Sponge.getRegistry().getTranslationById("options.language").get());
-    Text languageWarning = Text.of(Sponge.getRegistry().getTranslationById("options.languageWarning").get());
-
-
-    public final String languageOverridePermission = "translate.command.languageoverride";
-    public final String configReloadPermission = "translate.command.reload";
-    Map<String, Language> languageChoices = new HashMap<>(20);
-    public void initMap(){
-        {
-            for(Language l:Language.values()){
-                if(l.equals(Language.AUTO_DETECT))
-                    continue;
-                try {
-                    languageChoices.put(l.getName(l).replace(' ', '_'),l);
-                } catch (Exception e){
-                    languageChoices.put(l.toString().replace(' ', '_'),l);
-                }
+    private Text commandKey = Text.of(Sponge.getRegistry().getTranslationById("options.language").get());
+    private Text languageWarning = Text.of(Sponge.getRegistry().getTranslationById("options.languageWarning").get());
+    private static final String LANGUAGE_OVERRIDE_PERMISSION = "translate.command.languageoverride";
+    private static final String CONFIG_RELOAD_PERMISSION = "translate.command.reload";
+    private Map<String, Language> languageChoices = new HashMap<>(20);
+    private void initMap(){
+        for(final Language lang:Language.values()){
+            if(Language.AUTO_DETECT == lang)
+                continue;
+            try {
+                languageChoices.put(lang.getName(lang).replace(' ', '_'),lang);
+            } catch (Exception e){
+                languageChoices.put(lang.toString().replace(' ', '_'),lang);
             }
         }
     }
 
     @Listener
-    public void onPlayerJoin(ClientConnectionEvent.Join event){
+    public void onPlayerJoin(final ClientConnectionEvent.Join event){
         if(Sponge.getServer().getOnlinePlayers().stream().anyMatch(p->!p.getLocale().equals(event.getTargetEntity().getLocale()))) {
             Sponge.getServer().getBroadcastChannel().send(languageWarning);
         }
     }
 
     @Listener
-    public void onCommandInitTime(GameInitializationEvent event) {
+    public void onCommandInitTime(final GameInitializationEvent event) {
         initMap();
-        CommandSpec overrideLanguageSpec = CommandSpec.builder()
+        final CommandSpec overrideLanguageSpec = CommandSpec.builder()
                 .arguments(GenericArguments.playerOrSource(Text.of("player")), GenericArguments.optional(GenericArguments.choices(commandKey, languageChoices)))
-                .permission(languageOverridePermission)
+                .permission(LANGUAGE_OVERRIDE_PERMISSION)
                 .executor((src, context) -> {
                     Optional<Player> p = context.getOne("player");
                     Optional<Language> opt = context.getOne("options.language");
-                    if (!p.isPresent()) return CommandResult.empty();
+                    if (!p.isPresent()) {
+                        return CommandResult.empty();
+                    }
                     if (opt.isPresent()) {
                         DataTransactionResult result = p.get().offer(new LanguageData(opt.get().toString()));
                         if (result.isSuccessful()) {
                             try {
-                                src.sendMessage(Text.of("Players language set to :", opt.get().getName(opt.get())));
+                                src.sendMessage(Text.of("Players language set to : ", opt.get().getName(opt.get())));
                             } catch (Exception e) {
                             }
                             return CommandResult.success();
@@ -124,29 +121,29 @@ public class TranslateWithBing {
                     }
                 })
                 .build();
-        CommandSpec reloadConfigSpec = CommandSpec.builder()
-                .permission(configReloadPermission)
+        final CommandSpec reloadConfigSpec = CommandSpec.builder()
+                .permission(CONFIG_RELOAD_PERMISSION)
                 .executor((src,args)->{setupPlugin();return CommandResult.success();})
                 .build();
 
         Sponge.getCommandManager().register(this, overrideLanguageSpec, "language");
         Sponge.getCommandManager().register(this, reloadConfigSpec, "reloadTranslate");
-        Optional<PermissionService> permissionService = Sponge.getGame().getServiceManager().provide(PermissionService.class);
+        final Optional<PermissionService> permissionService = Sponge.getGame().getServiceManager().provide(PermissionService.class);
         permissionService.ifPresent(ps->{
-            Optional<Builder> builder = ps.newDescriptionBuilder(this);
-            builder.ifPresent(descBuilder -> {
-                descBuilder.assign(PermissionDescription.ROLE_USER, true)
-                        .id(languageOverridePermission)
+            final Optional<PermissionDescription.Builder> builder = ps.newDescriptionBuilder(this);
+            builder.ifPresent(descBuilder ->
+                    descBuilder
+                        .assign(PermissionDescription.ROLE_USER, true)
+                        .id(LANGUAGE_OVERRIDE_PERMISSION)
                         .description(Text.of("For command /langauge for overriding TranslateWithBing language."))
-                        .register();
-            });
-            Optional<Builder> builder2 = ps.newDescriptionBuilder(this);
-            builder2.ifPresent(descBuilder->{
-                descBuilder.assign(PermissionDescription.ROLE_ADMIN, true)
-                        .id(configReloadPermission)
+                        .register());
+            final Optional<PermissionDescription.Builder> builder2 = ps.newDescriptionBuilder(this);
+            builder2.ifPresent(descBuilder->
+                    descBuilder
+                        .assign(PermissionDescription.ROLE_ADMIN, true)
+                        .id(CONFIG_RELOAD_PERMISSION)
                         .description(Text.of("Reloads the Translate configuration"))
-                        .register();
-            });
+                        .register());
         });
 
     }
@@ -173,7 +170,9 @@ public class TranslateWithBing {
         final CommentedConfigurationNode secret = rootNode.getNode("ClientSecret");
         final String sID = id.getString(defNode.getNode("ClientID").getString());
         final String sSecret = secret.getString(defNode.getNode("ClientSecret").getString());
-        if("UNSET".equals(sSecret)) throw new RuntimeException("You need to register a ClientID & Client Secret to use this plugin, see https://msdn.microsoft.com/en-us/library/mt146806.aspx and fill in the config");
+        if("UNSET".equals(sSecret)) {
+            throw new RuntimeException("You need to register a ClientID & Client Secret to use this plugin, see https://msdn.microsoft.com/en-us/library/mt146806.aspx and fill in the config");
+        }
         try {
             Translate.setClientId(Preconditions.checkNotNull(sID));
             Translate.setClientSecret(Preconditions.checkNotNull(sSecret));
