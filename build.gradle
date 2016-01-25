@@ -1,7 +1,18 @@
-group 'au.id.rleach'
-version '1.0.1'
+buildscript {
+    repositories {
+        jcenter()
+    }
+
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.2'
+    }
+}
 
 apply plugin: 'java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+group 'au.id.rleach'
+version '1.0.2'
 
 sourceCompatibility = 1.8
 
@@ -12,9 +23,22 @@ repositories {
         url = 'http://repo.spongepowered.org/maven'
     }
 }
+configurations { compile { extendsFrom shadow } }
+
+def translator = 'com.memetix:microsoft-translator-java-api:0.6.2'
+
+shadowJar {
+    dependencies {
+        include(dependency('com.googlecode.json-simple:json-simple:1.1'))
+        include(dependency(translator))
+    }
+    relocate 'com.memetix' , 'au.id.rleach.shadow.com.memetix'
+    relocate 'org.json.simple' , 'au.id.rleach.shadow.org.json.simple'
+}
 
 dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.11'
-    compile 'com.memetix:microsoft-translator-java-api:0.6.2'
+    shadow translator
+    compile translator
     compile 'org.spongepowered:spongeapi:3.0.0'
 }
