@@ -43,7 +43,7 @@ import java.net.URL;
 import java.util.*;
 
 
-@Plugin(id="TranslateWithBing", name="TranslateWithBing", version="1.0.2")
+@Plugin(id="TranslateWithBing", name="TranslateWithBing", version="1.0.3")
 public class TranslateWithBing {
 
     @Inject
@@ -176,7 +176,13 @@ public class TranslateWithBing {
                                  .map(p -> (Player) p)
                                  .iterator();
         ImmutableListMultimap<Language, Player> multiMap = Multimaps.index(x, p -> {
-            return l2l.map.getOrDefault(p.getLocale(), Language.AUTO_DETECT);
+            String dataLang = p.get(TranslateKeys.Language).orElse("");
+            if(dataLang.isEmpty()){
+                return l2l.map.getOrDefault(p.getLocale(), Language.AUTO_DETECT);
+            } else {
+                return Language.fromString(dataLang);
+            }
+
         });
         Optional<Text> message = chat.getMessage();
         if(message.isPresent())

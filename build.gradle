@@ -12,7 +12,7 @@ apply plugin: 'java'
 apply plugin: 'com.github.johnrengelman.shadow'
 
 group 'au.id.rleach'
-version '1.0.2'
+version '1.0.3'
 
 sourceCompatibility = 1.8
 
