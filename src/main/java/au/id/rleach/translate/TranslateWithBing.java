@@ -42,7 +42,7 @@ import java.net.URL;
 import java.util.*;
 
 
-@Plugin(id="TranslateWithBing", name="TranslateWithBing", version="1.1.0")
+@Plugin(id="TranslateWithBing", name="TranslateWithBing", version="1.1.1")
 public class TranslateWithBing {
 
     @Inject
@@ -125,7 +125,7 @@ public class TranslateWithBing {
                 .build();
         final CommandSpec reloadConfigSpec = CommandSpec.builder()
                 .permission(CONFIG_RELOAD_PERMISSION)
-                .executor((src,args)->{setupPlugin();return CommandResult.success();})
+                .executor((src,args)->{setupPlugin();src.sendMessage(Text.of("Reloaded translator config"));return CommandResult.success();})
                 .build();
 
         Sponge.getCommandManager().register(this, overrideLanguageSpec, "language");
