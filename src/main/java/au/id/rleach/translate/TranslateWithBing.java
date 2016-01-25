@@ -43,7 +43,7 @@ import java.net.URL;
 import java.util.*;
 
 
-@Plugin(id="TranslateWithBing", name="TranslateWithBing", version="1.0.3")
+@Plugin(id="TranslateWithBing", name="TranslateWithBing", version="1.1.0")
 public class TranslateWithBing {
 
     @Inject
@@ -51,10 +51,10 @@ public class TranslateWithBing {
     private ConfigurationLoader<CommentedConfigurationNode> configMan;
 
     @Inject
-    Logger logger;
+    private Logger logger;
     private LocaleToLanguage l2l;
 
-    private URL jarConfigFile = this.getClass().getResource("default.conf");
+    private final URL jarConfigFile = this.getClass().getResource("default.conf");
     private ConfigurationLoader<CommentedConfigurationNode> loader = HoconConfigurationLoader.builder().setURL(jarConfigFile).build();
 
     @Listener
@@ -67,6 +67,7 @@ public class TranslateWithBing {
 
 
     public final String languageOverridePermission = "translate.command.languageoverride";
+    public final String configReloadPermission = "translate.command.reload";
     Map<String, Language> languageChoices = new HashMap<>(20);
     public void initMap(){
         {
@@ -84,7 +85,7 @@ public class TranslateWithBing {
 
     @Listener
     public void onPlayerJoin(ClientConnectionEvent.Join event){
-        if(Sponge.getServer().getOnlinePlayers().stream().anyMatch(p->p.getLocale()!=event.getTargetEntity().getLocale())) {
+        if(Sponge.getServer().getOnlinePlayers().stream().anyMatch(p->!p.getLocale().equals(event.getTargetEntity().getLocale()))) {
             Sponge.getServer().getBroadcastChannel().send(languageWarning);
         }
     }
@@ -123,7 +124,13 @@ public class TranslateWithBing {
                     }
                 })
                 .build();
+        CommandSpec reloadConfigSpec = CommandSpec.builder()
+                .permission(configReloadPermission)
+                .executor((src,args)->{setupPlugin();return CommandResult.success();})
+                .build();
+
         Sponge.getCommandManager().register(this, overrideLanguageSpec, "language");
+        Sponge.getCommandManager().register(this, reloadConfigSpec, "reloadTranslate");
         Optional<PermissionService> permissionService = Sponge.getGame().getServiceManager().provide(PermissionService.class);
         permissionService.ifPresent(ps->{
             Optional<Builder> builder = ps.newDescriptionBuilder(this);
@@ -133,12 +140,23 @@ public class TranslateWithBing {
                         .description(Text.of("For command /langauge for overriding TranslateWithBing language."))
                         .register();
             });
+            Optional<Builder> builder2 = ps.newDescriptionBuilder(this);
+            builder2.ifPresent(descBuilder->{
+                descBuilder.assign(PermissionDescription.ROLE_ADMIN, true)
+                        .id(configReloadPermission)
+                        .description(Text.of("Reloads the Translate configuration"))
+                        .register();
+            });
         });
 
     }
 
     @Listener
-    public void serverStarted(GamePreInitializationEvent event){
+    public final void serverStarted(final GamePreInitializationEvent event){
+        setupPlugin();
+    }
+
+    private void setupPlugin(){
         l2l = new LocaleToLanguage();
         CommentedConfigurationNode rootNode = null;
         CommentedConfigurationNode defNode = null;
@@ -147,80 +165,76 @@ public class TranslateWithBing {
             defNode = loader.load();
             rootNode = rootNode.mergeValuesFrom(defNode);
             configMan.save(rootNode);
-        } catch (IOException e) {
+        } catch (final IOException e) {
             logger.error("Unable to read config ",e);
         }
 
-        CommentedConfigurationNode id = rootNode.getNode("ClientID");
-        CommentedConfigurationNode secret = rootNode.getNode("ClientSecret");
-        String sID = id.getString(defNode.getNode("ClientID").getString());
-        String sSecret = secret.getString(defNode.getNode("ClientSecret").getString());
-        if(sSecret.equals("UNSET")) throw new RuntimeException("You need to register a ClientID & Client Secret to use this plugin, see https://msdn.microsoft.com/en-us/library/mt146806.aspx and fill in the config");
+        final CommentedConfigurationNode id = rootNode.getNode("ClientID");
+        final CommentedConfigurationNode secret = rootNode.getNode("ClientSecret");
+        final String sID = id.getString(defNode.getNode("ClientID").getString());
+        final String sSecret = secret.getString(defNode.getNode("ClientSecret").getString());
+        if("UNSET".equals(sSecret)) throw new RuntimeException("You need to register a ClientID & Client Secret to use this plugin, see https://msdn.microsoft.com/en-us/library/mt146806.aspx and fill in the config");
         try {
             Translate.setClientId(Preconditions.checkNotNull(sID));
             Translate.setClientSecret(Preconditions.checkNotNull(sSecret));
-        } catch (Exception e){
+        } catch (final RuntimeException e){
             throw new RuntimeException("You need to register a ClientID & Client Secret to use this plugin, see https://msdn.microsoft.com/en-us/library/mt146806.aspx and fill in the config");
         }
 
-        Translate.setContentType("text/html");
+        //Translate.setContentType("text/html");
+        Translate.setContentType("text/plain");
     }
 
     @Listener(order = Order.LAST)
-    public void chatEvent(MessageChannelEvent.Chat chat, @First Player player){
-        Locale locale = player.getLocale();
-
-        Iterator<Player> x = chat.getChannel().get()
+    public void chatEvent(final MessageChannelEvent.Chat chat, @First final Player player){
+        final Iterator<Player> playerI = chat.getChannel().get()
                                  .getMembers().stream()
                                  .filter(messageReceiver -> messageReceiver instanceof Player)
                                  .map(p -> (Player) p)
                                  .iterator();
-        ImmutableListMultimap<Language, Player> multiMap = Multimaps.index(x, p -> {
-            String dataLang = p.get(TranslateKeys.Language).orElse("");
-            if(dataLang.isEmpty()){
-                return l2l.map.getOrDefault(p.getLocale(), Language.AUTO_DETECT);
-            } else {
-                return Language.fromString(dataLang);
-            }
-
-        });
-        Optional<Text> message = chat.getMessage();
-        if(message.isPresent())
-            sendTranslatedMessages(player, multiMap,message.get());
+        final ImmutableListMultimap<Language, Player> multiMap = Multimaps.index(playerI, this::languageFromPlayer);
+        final Optional<Text> optMessage = chat.getMessage();
+        optMessage.ifPresent(
+                message -> sendTranslatedMessages(player, multiMap, message)
+        );
     }
 
-    public void sendTranslatedMessages(Player from, ImmutableListMultimap<Language, Player> multiMap, Text message){
-        String fromString = from.get(TranslateKeys.Language).orElse("");
-        Language fromLang;
-        if(fromString.isEmpty()) {
-            fromLang = this.l2l.map.getOrDefault(from.getLocale(), Language.AUTO_DETECT);
+    private Language languageFromPlayer(final Player p){
+        final String dataLang = p.get(TranslateKeys.Language).orElse("");
+        if(dataLang.isEmpty()){
+            return l2l.map.getOrDefault(p.getLocale(), Language.AUTO_DETECT);
         } else {
-            fromLang = Language.fromString(fromString);
+            return Language.fromString(dataLang);
         }
+    }
 
-        Task submit = Sponge.getScheduler().createTaskBuilder()
+    private void sendTranslatedMessages(final Player from, final ImmutableListMultimap<Language, Player> multiMap, final Text message){
+        final Language fromLang = languageFromPlayer(from);
+        final Task submit = Sponge.getScheduler().createTaskBuilder()
                 .async()
+                .name("Chat Translate Task")
                 .execute(() -> {
                     multiMap.keys().stream()
-                            .distinct()
-                            .filter(to->!to.equals(Language.AUTO_DETECT))
-                            .filter(to->!to.equals(fromLang)).forEach(
-                            to -> {
-                                String html = "";
-                                String out2 = "";
-                                try {
-                                    html = TextSerializers.LEGACY_FORMATTING_CODE.serialize(message);
-                                    String out = Translate.execute(html, fromLang, to);
-                                    out2 = out;
-                                    multiMap.get(to).stream().forEach(p->p.sendMessage(ChatTypes.CHAT, Text.of(TextColors.GRAY,"⚑", TextSerializers.LEGACY_FORMATTING_CODE.deserialize(out))));
+                        .distinct()
+                        .filter(to-> Language.AUTO_DETECT != to)
+                        .filter(to-> to != fromLang).forEach(
+                        to -> {
+                            String html = "";
+                            String out2 = "";
+                            try {
+                                html = TextSerializers.LEGACY_FORMATTING_CODE.serialize(message);
+                                String out = Translate.execute(html, fromLang, to);
+                                out2 = out;
+                                multiMap.get(to).stream().forEach(p->p.sendMessage(ChatTypes.CHAT, Text.of(TextColors.GRAY,"⚑", TextSerializers.LEGACY_FORMATTING_CODE.deserialize(out))));
 
-                                } catch (Exception e) {
-                                    logger.error("threw an exception while parsing xml", e);
-                                    logger.error("\n\n"+from.toString()+"->"+to.toString()+"\nbefore:\n"+html + "\n\nafter: \n" + out2);
-                                }
+                            } catch (Exception e) {
+                                this.logger.error("threw an exception while parsing response", e);
+                                this.logger.error("\n\n{}->{}\nbefore:\n{}\n\nafter: \n{}", from, to, html, out2);
                             }
+                        }
                     );
 
-                }).submit(this);
+                })
+                .submit(this);
     }
 }
