@@ -3,7 +3,6 @@ package au.id.rleach.translate.data;
 import org.spongepowered.api.data.DataHolder;
 import org.spongepowered.api.data.DataView;
 import org.spongepowered.api.data.manipulator.DataManipulatorBuilder;
-import org.spongepowered.api.util.persistence.InvalidDataException;
 
 import java.util.Optional;
 
@@ -20,7 +19,7 @@ public class LanguageDataManipulatorBuilder implements DataManipulatorBuilder<La
     }
 
     @Override
-    public Optional<LanguageData> build(DataView container) throws InvalidDataException {
+    public Optional<LanguageData> build(DataView container) {
         // Note that this should check the Queries.CONTENT_VERSION, but for the sake of demonstration
         // it's not necessary
         if (container.contains(TranslateKeys.Language.getQuery())) {

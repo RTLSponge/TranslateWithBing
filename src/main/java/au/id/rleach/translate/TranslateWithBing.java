@@ -36,13 +36,17 @@ import org.spongepowered.api.text.chat.ChatTypes;
 import org.spongepowered.api.text.format.TextColors;
 import org.spongepowered.api.text.serializer.TextSerializers;
 
-import javax.inject.Inject;
 import java.io.IOException;
 import java.net.URL;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Optional;
+
+import javax.inject.Inject;
 
 
-@Plugin(id="TranslateWithBing", name="TranslateWithBing", version="1.1.1")
+@Plugin(id="translatewithbing", name="TranslateWithBing", version="1.1.2")
 public class TranslateWithBing {
 
     @Inject
@@ -194,10 +198,8 @@ public class TranslateWithBing {
                                  .map(p -> (Player) p)
                                  .iterator();
         final ImmutableListMultimap<Language, Player> multiMap = Multimaps.index(playerI, this::languageFromPlayer);
-        final Optional<Text> optMessage = chat.getMessage();
-        optMessage.ifPresent(
-                message -> sendTranslatedMessages(player, multiMap, message)
-        );
+        final Text message = chat.getMessage();
+        sendTranslatedMessages(player, multiMap, message);
     }
 
     private Language languageFromPlayer(final Player p){
