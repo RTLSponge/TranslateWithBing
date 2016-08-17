@@ -12,7 +12,7 @@ apply plugin: 'java'
 apply plugin: 'com.github.johnrengelman.shadow'
 
 group 'au.id.rleach'
-version '1.1.2'
+version '1.2.0'
 
 sourceCompatibility = 1.8
 
@@ -40,5 +40,5 @@ dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.11'
     shadow translator
     compile translator
-    compile 'org.spongepowered:spongeapi:4.0.3'
+    compile 'org.spongepowered:spongeapi:4.1.0'
 }

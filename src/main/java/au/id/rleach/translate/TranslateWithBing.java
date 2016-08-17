@@ -1,5 +1,6 @@
 package au.id.rleach.translate;
 
+
 import au.id.rleach.translate.data.ImmutableLanguageData;
 import au.id.rleach.translate.data.LanguageData;
 import au.id.rleach.translate.data.TranslateKeys;
@@ -14,7 +15,10 @@ import ninja.leaping.configurate.hocon.HoconConfigurationLoader;
 import ninja.leaping.configurate.loader.ConfigurationLoader;
 import org.slf4j.Logger;
 import org.spongepowered.api.Sponge;
+import org.spongepowered.api.command.CommandException;
 import org.spongepowered.api.command.CommandResult;
+import org.spongepowered.api.command.CommandSource;
+import org.spongepowered.api.command.args.CommandContext;
 import org.spongepowered.api.command.args.GenericArguments;
 import org.spongepowered.api.command.spec.CommandSpec;
 import org.spongepowered.api.config.DefaultConfig;
@@ -23,6 +27,7 @@ import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.event.Listener;
 import org.spongepowered.api.event.Order;
 import org.spongepowered.api.event.filter.cause.First;
+import org.spongepowered.api.event.game.GameReloadEvent;
 import org.spongepowered.api.event.game.state.GameInitializationEvent;
 import org.spongepowered.api.event.game.state.GamePreInitializationEvent;
 import org.spongepowered.api.event.message.MessageChannelEvent;
@@ -46,7 +51,7 @@ import java.util.Optional;
 import javax.inject.Inject;
 
 
-@Plugin(id="translatewithbing", name="TranslateWithBing", version="1.1.2")
+@Plugin(id="translatewithbing", name="TranslateWithBing", version="1.2.0", description = "Translates chat using Microsoft Azure")
 public class TranslateWithBing {
 
     @Inject
@@ -59,6 +64,7 @@ public class TranslateWithBing {
 
     private final URL jarConfigFile = this.getClass().getResource("default.conf");
     private ConfigurationLoader<CommentedConfigurationNode> loader = HoconConfigurationLoader.builder().setURL(jarConfigFile).build();
+    private boolean sendWarningOnJoin = true;
 
     @Listener
     public void onPreInit(GamePreInitializationEvent event) {
@@ -83,7 +89,13 @@ public class TranslateWithBing {
     }
 
     @Listener
+    public void reloadGame(final GameReloadEvent reloadEvent){
+        reload();
+    }
+
+    @Listener
     public void onPlayerJoin(final ClientConnectionEvent.Join event){
+        if(!this.sendWarningOnJoin) return;
         if(Sponge.getServer().getOnlinePlayers().stream().anyMatch(p->!p.getLocale().equals(event.getTargetEntity().getLocale()))) {
             Sponge.getServer().getBroadcastChannel().send(languageWarning);
         }
@@ -97,7 +109,7 @@ public class TranslateWithBing {
                 .permission(LANGUAGE_OVERRIDE_PERMISSION)
                 .executor((src, context) -> {
                     Optional<Player> p = context.getOne("player");
-                    Optional<Language> opt = context.getOne("options.language");
+                    Optional<Language> opt = context.getOne(commandKey);
                     if (!p.isPresent()) {
                         return CommandResult.empty();
                     }
@@ -107,8 +119,7 @@ public class TranslateWithBing {
                             try {
                                 src.sendMessage(Text.of("Players language set to : ", opt.get().getName(opt.get())));
                             } catch (Exception e) {
-                                src.sendMessage(Text.of("An error occured",e.getMessage()));
-                                return CommandResult.empty();
+                                throw new CommandException(Text.of(e.getMessage()));
                             }
                             return CommandResult.success();
                         } else {
@@ -129,7 +140,7 @@ public class TranslateWithBing {
                 .build();
         final CommandSpec reloadConfigSpec = CommandSpec.builder()
                 .permission(CONFIG_RELOAD_PERMISSION)
-                .executor((src,args)->{setupPlugin();src.sendMessage(Text.of("Reloaded translator config"));return CommandResult.success();})
+                .executor((src,args)->{return doReload(src,args);})
                 .build();
 
         Sponge.getCommandManager().register(this, overrideLanguageSpec, "language");
@@ -154,6 +165,16 @@ public class TranslateWithBing {
 
     }
 
+    private CommandResult doReload(final CommandSource src, final CommandContext args) {
+        reload();
+        src.sendMessage(Text.of("Reloaded translator config"));
+        return CommandResult.success();
+    }
+
+    private void reload() {
+        setupPlugin();
+    }
+
     @Listener
     public final void serverStarted(final GamePreInitializationEvent event){
         setupPlugin();
@@ -176,10 +197,12 @@ public class TranslateWithBing {
         final CommentedConfigurationNode secret = rootNode.getNode("ClientSecret");
         final String sID = id.getString(defNode.getNode("ClientID").getString());
         final String sSecret = secret.getString(defNode.getNode("ClientSecret").getString());
+        final Boolean sSendWarningOnJoin = rootNode.getNode("SendWarningOnJoin").getBoolean(true);
         if("UNSET".equals(sSecret)) {
             throw new RuntimeException("You need to register a ClientID & Client Secret to use this plugin, see https://msdn.microsoft.com/en-us/library/mt146806.aspx and fill in the config");
         }
         try {
+            sendWarningOnJoin = Preconditions.checkNotNull(sSendWarningOnJoin);
             Translate.setClientId(Preconditions.checkNotNull(sID));
             Translate.setClientSecret(Preconditions.checkNotNull(sSecret));
         } catch (final RuntimeException e){
